@@ -78,7 +78,7 @@ def perform_ocr(images, use_gpu=True):
         foundation_predictor = FoundationPredictor(device=device)
         
         print_status("Loading Recognition Predictor...", "processing")
-        recognition_predictor = RecognitionPredictor(foundation_predictor, device=device)
+        recognition_predictor = RecognitionPredictor(foundation_predictor)
         
         print_status("Loading Detection Predictor...", "processing")
         detection_predictor = DetectionPredictor(device=device)
