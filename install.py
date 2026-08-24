@@ -57,28 +57,27 @@ def install_requirements():
         sys.exit(1)
 
 def download_models():
-    print_header("Downloading Surya OCR Models")
+    print_header("Downloading Chandra OCR 2 Models")
     print("Downloading models (this will take a few minutes)...")
-    print("   Models are approximately 1-2 GB in size\n")
+    print("   Models are approximately 2-3 GB in size\n")
     
     try:
-        print("Initializing Surya OCR...")
+        print("Initializing Chandra OCR 2...")
         
-        from surya.foundation import FoundationPredictor
-        from surya.recognition import RecognitionPredictor
-        from surya.detection import DetectionPredictor
+        from transformers import AutoModelForImageTextToText, AutoProcessor
+        import torch
         
-        print("  → Loading Foundation Predictor...")
-        foundation_predictor = FoundationPredictor()
-        print("  ✓ Foundation Predictor loaded")
+        print("  → Loading Chandra OCR 2 model...")
+        model = AutoModelForImageTextToText.from_pretrained(
+            "datalab-to/chandra-ocr-2",
+            torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
+            device_map="auto"
+        )
+        print("  ✓ Chandra OCR 2 model loaded")
         
-        print("  → Loading Recognition Predictor...")
-        recognition_predictor = RecognitionPredictor(foundation_predictor)
-        print("  ✓ Recognition Predictor loaded")
-        
-        print("  → Loading Detection Predictor...")
-        detection_predictor = DetectionPredictor()
-        print("  ✓ Detection Predictor loaded")
+        print("  → Loading processor...")
+        processor = AutoProcessor.from_pretrained("datalab-to/chandra-ocr-2")
+        print("  ✓ Processor loaded")
         
         print("\nAll models downloaded and loaded successfully!")
         

@@ -1,4 +1,4 @@
-surya-ocr==0.17.1
+chandra-ocr[hf]
 transformers<5.0.0,>=4.56.0
 Pillow>=10.0.0
 torch>=2.0.0

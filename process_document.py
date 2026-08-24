@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Process document with OCR and field extraction
-Combines Surya OCR with Qwen-based field extraction
+Combines Chandra OCR 2 with Qwen-based field extraction
 
 Usage:
     python process_document.py <file_path>                    # OCR only
@@ -70,26 +70,61 @@ def process_image(image_path):
         raise
 
 
-def perform_ocr(images):
-    """Perform OCR using Surya"""
-    print_status("Initializing Surya OCR models...", "processing")
+def perform_ocr(images, use_gpu=True):
+    """Perform OCR using Chandra 2"""
+    print_status("Initializing Chandra OCR 2 models...", "processing")
     
     try:
-        from surya.foundation import FoundationPredictor
-        from surya.recognition import RecognitionPredictor
-        from surya.detection import DetectionPredictor
+        from transformers import AutoModelForImageTextToText, AutoProcessor
+        from chandra.model.hf import generate_hf
+        from chandra.model.schema import BatchInputItem
+        from chandra.output import parse_markdown
+        import torch
         
-        print_status("Loading Foundation Predictor...", "processing")
-        foundation_predictor = FoundationPredictor()
+        if use_gpu and torch.cuda.is_available():
+            device = "cuda"
+            dtype = torch.bfloat16
+            print_status(f"GPU detected: {torch.cuda.get_device_name(0)}", "info")
+            print_status(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB", "info")
+        else:
+            device = "cpu"
+            dtype = torch.float32
+            if use_gpu:
+                print_status("GPU requested but not available, using CPU", "info")
+            else:
+                print_status("Using CPU", "info")
         
-        print_status("Loading Recognition Predictor...", "processing")
-        recognition_predictor = RecognitionPredictor(foundation_predictor)
+        print_status("Loading Chandra OCR 2 model...", "processing")
+        model = AutoModelForImageTextToText.from_pretrained(
+            "datalab-to/chandra-ocr-2",
+            torch_dtype=dtype,
+            device_map="auto"
+        )
+        model.eval()
         
-        print_status("Loading Detection Predictor...", "processing")
-        detection_predictor = DetectionPredictor()
+        print_status("Loading processor...", "processing")
+        model.processor = AutoProcessor.from_pretrained("datalab-to/chandra-ocr-2")
+        model.processor.tokenizer.padding_side = "left"
         
-        print_status(f"Running OCR on {len(images)} image(s)...", "processing")
-        predictions = recognition_predictor(images, det_predictor=detection_predictor)
+        print_status(f"Running OCR on {len(images)} image(s) using {device.upper()}...", "processing")
+        
+        batch = [
+            BatchInputItem(
+                image=img,
+                prompt_type="ocr_layout"
+            )
+            for img in images
+        ]
+        
+        results = generate_hf(batch, model)
+        
+        predictions = []
+        for result in results:
+            markdown = parse_markdown(result.raw)
+            predictions.append({
+                'markdown': markdown,
+                'raw': result.raw
+            })
         
         print_status("OCR completed successfully", "success")
         return predictions
@@ -110,12 +145,9 @@ def format_as_markdown(predictions, filename):
     for idx, prediction in enumerate(predictions, 1):
         markdown_output.append(f"\n## Page {idx}\n")
         
-        if hasattr(prediction, 'text_lines') and prediction.text_lines:
-            for line in prediction.text_lines:
-                if hasattr(line, 'text'):
-                    markdown_output.append(f"{line.text}\n")
-        elif hasattr(prediction, 'text'):
-            markdown_output.append(f"{prediction.text}\n")
+        if isinstance(prediction, dict) and 'markdown' in prediction:
+            markdown_output.append(prediction['markdown'])
+            markdown_output.append("\n")
         else:
             markdown_output.append("*No text detected on this page*\n")
     
@@ -127,12 +159,8 @@ def extract_plain_text(predictions):
     text_parts = []
     
     for prediction in predictions:
-        if hasattr(prediction, 'text_lines') and prediction.text_lines:
-            for line in prediction.text_lines:
-                if hasattr(line, 'text'):
-                    text_parts.append(line.text)
-        elif hasattr(prediction, 'text'):
-            text_parts.append(prediction.text)
+        if isinstance(prediction, dict) and 'markdown' in prediction:
+            text_parts.append(prediction['markdown'])
     
     return '\n'.join(text_parts)
 

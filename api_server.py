@@ -77,7 +77,7 @@ async def process_ocr(
         print(f"[INFO] Temp path: {temp_file_path}")
         print(f"[INFO] Fields to extract: {len(fields_list)}")
         
-        print("[STEP 1] Running Surya OCR...")
+        print("[STEP 1] Running Chandra OCR 2...")
         
         if temp_file_path.lower().endswith('.pdf'):
             images = pdf_to_images(temp_file_path)
@@ -91,8 +91,8 @@ async def process_ocr(
         
         full_text = ""
         for page_pred in predictions:
-            for line in page_pred.text_lines:
-                full_text += line.text + "\n"
+            if isinstance(page_pred, dict) and 'markdown' in page_pred:
+                full_text += page_pred['markdown'] + "\n"
         
         print(f"[SUCCESS] OCR completed. Extracted {len(full_text)} characters")
         
@@ -174,7 +174,7 @@ async def categorize_document(
         print(f"[INFO] Categorizing file: {file.filename}")
         print(f"[INFO] Available categories: {categories_list}")
         
-        print("[STEP 1] Running OCR...")
+        print("[STEP 1] Running Chandra OCR 2...")
         
         if temp_file_path.lower().endswith('.pdf'):
             images = pdf_to_images(temp_file_path)
@@ -185,8 +185,8 @@ async def categorize_document(
         
         full_text = ""
         for page_pred in predictions:
-            for line in page_pred.text_lines:
-                full_text += line.text + "\n"
+            if isinstance(page_pred, dict) and 'markdown' in page_pred:
+                full_text += page_pred['markdown'] + "\n"
         
         print(f"[SUCCESS] OCR completed. Extracted {len(full_text)} characters")
     
