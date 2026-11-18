@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""
-Auto-upload script for monitoring directory and uploading files to OCR system
-Monitors a 'free' directory, uploads files via API, and moves them to 'uploaded' or 'failed' folders
-"""
 
 import os
 import sys

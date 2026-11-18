@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""
-Process document with OCR and field extraction
-Combines Chandra OCR 2 with Qwen-based field extraction
-
-Usage:
-    python process_document.py <file_path>                    # OCR only
-    python process_document.py <file_path> <fields_json>      # OCR + extraction
-"""
 
 import sys
 import os
@@ -84,11 +76,13 @@ def perform_ocr(images, use_gpu=True):
         if use_gpu and torch.cuda.is_available():
             device = "cuda"
             dtype = torch.bfloat16
+            device_map = "auto"
             print_status(f"GPU detected: {torch.cuda.get_device_name(0)}", "info")
             print_status(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB", "info")
         else:
             device = "cpu"
-            dtype = torch.float32
+            dtype = torch.bfloat16  # bfloat16 on CPU halves RAM vs float32 (~10GB vs ~20GB)
+            device_map = {"": "cpu"}  # explicit CPU, avoids accelerate disk-offload error
             if use_gpu:
                 print_status("GPU requested but not available, using CPU", "info")
             else:
@@ -97,8 +91,9 @@ def perform_ocr(images, use_gpu=True):
         print_status("Loading Chandra OCR 2 model...", "processing")
         model = AutoModelForImageTextToText.from_pretrained(
             "datalab-to/chandra-ocr-2",
-            torch_dtype=dtype,
-            device_map="auto"
+            dtype=dtype,
+            device_map=device_map,
+            low_cpu_mem_usage=True,
         )
         model.eval()
         

@@ -2,10 +2,26 @@
 import sys
 import os
 import json
+import base64
+import io
 from pathlib import Path
 from PIL import Image
 import fitz
-import torch
+from openai import OpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
+
+def _get_client():
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY is not set. Please add it to your .env file.")
+    return OpenAI(api_key=api_key)
+
+def _image_to_base64(img: Image.Image) -> str:
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 def print_status(message, status="info"):
     symbols = {
@@ -56,57 +72,56 @@ def process_image(image_path):
         raise
 
 def perform_ocr(images, use_gpu=True):
-    print_status("Initializing Chandra OCR 2 models...", "processing")
+    print_status("Initializing OpenAI OCR...", "processing")
     
     try:
-        from transformers import AutoModelForImageTextToText, AutoProcessor
-        from chandra.model.hf import generate_hf
-        from chandra.model.schema import BatchInputItem
-        from chandra.output import parse_markdown
+        client = _get_client()
+        model = os.environ.get("OPENAI_OCR_MODEL", "gpt-4o-mini")
         
-        if use_gpu and torch.cuda.is_available():
-            device = "cuda"
-            dtype = torch.bfloat16
-            print_status(f"GPU detected: {torch.cuda.get_device_name(0)}", "info")
-            print_status(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB", "info")
-        else:
-            device = "cpu"
-            dtype = torch.float32
-            if use_gpu:
-                print_status("GPU requested but not available, using CPU", "info")
-            else:
-                print_status("Using CPU", "info")
-        
-        print_status("Loading Chandra OCR 2 model...", "processing")
-        model = AutoModelForImageTextToText.from_pretrained(
-            "datalab-to/chandra-ocr-2",
-            torch_dtype=dtype,
-            device_map="auto"
-        )
-        model.eval()
-        
-        print_status("Loading processor...", "processing")
-        model.processor = AutoProcessor.from_pretrained("datalab-to/chandra-ocr-2")
-        model.processor.tokenizer.padding_side = "left"
-        
-        print_status(f"Running OCR on {len(images)} image(s) using {device.upper()}...", "processing")
-        
-        batch = [
-            BatchInputItem(
-                image=img,
-                prompt_type="ocr_layout"
-            )
-            for img in images
-        ]
-        
-        results = generate_hf(batch, model)
+        print_status(f"Running OCR on {len(images)} image(s) using OpenAI {model}...", "processing")
         
         predictions = []
-        for result in results:
-            markdown = parse_markdown(result.raw)
+        for idx, img in enumerate(images):
+            print_status(f"OCR page {idx + 1}/{len(images)}...", "processing")
+            
+            image_b64 = _image_to_base64(img)
+            
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/png;base64,{image_b64}",
+                                    "detail": "high"
+                                }
+                            },
+                            {
+                                "type": "text",
+                                "text": (
+                                    "You are performing OCR on a document. "
+                                    "Extract ALL text exactly as it appears in the document. "
+                                    "Preserve the structure using markdown:\n"
+                                    "- Use markdown headings for section titles\n"
+                                    "- Use markdown tables for tabular data\n"
+                                    "- Preserve lists, amounts, dates, and codes exactly as written\n"
+                                    "- Do NOT translate, summarize, or modify any text\n"
+                                    "Return ONLY the extracted markdown text, no explanations."
+                                )
+                            }
+                        ]
+                    }
+                ],
+                max_tokens=4096
+            )
+            
+            markdown = response.choices[0].message.content.strip()
             predictions.append({
                 'markdown': markdown,
-                'raw': result.raw
+                'raw': markdown
             })
         
         print_status("OCR completed successfully", "success")

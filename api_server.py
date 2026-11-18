@@ -1,15 +1,13 @@
-"""
-FastAPI server for DocAI OCR processing
-Provides async API endpoint for document processing with Qwen field extraction
-"""
-
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
 import json
 import os
 import tempfile
 from pathlib import Path
 import traceback
+
+load_dotenv()
 
 from field_extractor import QwenFieldExtractor
 from surya_ocr import pdf_to_images, process_image as load_image, perform_ocr, format_as_markdown
@@ -24,9 +22,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-print("[INFO] Loading Qwen model...")
-extractor = QwenFieldExtractor(use_gpu=True)
-print("[SUCCESS] Qwen model loaded and ready")
+print("[INFO] Initializing OpenAI extractor...")
+extractor = QwenFieldExtractor()
+print("[SUCCESS] OpenAI extractor ready")
 
 @app.get("/")
 def read_root():

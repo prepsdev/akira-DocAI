@@ -1,11 +1,8 @@
-chandra-ocr[hf]
-transformers<5.0.0,>=4.56.0
+openai>=1.0.0
+python-dotenv>=1.0.0
 Pillow>=10.0.0
-torch>=2.0.0
 PyMuPDF>=1.23.0
-tqdm>=4.65.0
-accelerate>=0.20.0
-sentencepiece>=0.1.99
 fastapi>=0.104.0
 uvicorn>=0.24.0
 python-multipart>=0.0.6
+requests>=2.28.0
